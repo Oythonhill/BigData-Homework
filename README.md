@@ -1,7 +1,8 @@
 # BigData-Homework
-homework codes during the period studying  in Renming University , using python, r, sql .etc
 
-This folder is for saving codes during the period studying in Renming University about BigData. There are sevel parts including:
+this folder is for saving homework codes during the period studying  in Renming University about BigData, using python, r, sql .etc
+
+There are sevel parts including:
 
 R codes
 
@@ -13,4 +14,5 @@ R codes
 Python codes
 
 1. KNN
+
 ... remain for updating ...
