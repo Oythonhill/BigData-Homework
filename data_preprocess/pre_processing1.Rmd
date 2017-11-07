@@ -1,0 +1,85 @@
+---
+title: <center><font color=DarkSlateGray face="黑体" size=6>数据的预处理-第一次作业</font></center>
+author: <center><font color=DarkSlateGray face="黑体" size=4>尹宏宇</font></center>
+date: <center><font color=DarkSlateGray face="黑体" size=4>2017年10月27日</font></center>
+output:
+  html_document: default
+---
+
+```{r echo=F}
+#直接载入已经下载好数据的工作环境
+load("C:/Users/YHY/.RData")
+```
+<font color=DarkSlateGray face="黑体" size=5> 第一部分  整理汇率数据</font>
+
+<font color=DarkSlateGray face="黑体" size=4>1.1 准备工作，导入需要的包</font>
+  
+```{r}
+library(TTR)
+library(zoo)
+library(xts)
+library(quantmod)
+```
+
+<font color=DarkSlateGray face="黑体" size=4>1.2 获取货币名称并构造货币对</font>
+  
+```{r}
+#获取所有货币的名称
+currencylist = labels(oanda.currencies)
+#生成currencypairs用于getFX函数获取数据
+currencypairs = paste("USD/",unlist(currencylist),sep = "")
+#生成currencypairs2用于读取上一步获取的数据
+currencypairs2 = paste("USD",unlist(currencylist),sep = "")
+```
+  
+<font color=DarkSlateGray face="黑体" size=4>1.3 从oanda网站下载数据</font>
+  
+```{r eval=F}
+#循环，下载数据
+#尝试多次，下载经常报错，考虑到可能是实时爬取数据，
+#因此设置每次爬取后间隔一秒
+for(i in currencypairs){
+    getFX(i)
+    Sys.sleep(1)
+}
+```
+
+<font color=DarkSlateGray face="黑体" size=4>1.4 按照字母顺序合并数据并展示</font>
+  
+```{r}
+
+#将数据按照字母顺序排列后重新赋值
+currencypairs2 = currencypairs2[order(currencypairs2[-length(currencypairs2)])]
+#按照currencypairs2的顺序合并数据
+mydata = NULL
+for(i in currencypairs2){
+  mydata = cbind(mydata,get(i))
+}
+#添加行名
+mydata[0]=USDADF[0]
+dim(mydata)
+names(mydata)
+head(mydata)
+```
+<font color=DarkSlateGray face="黑体" size=5>第二部分 将按时间合并后的US_Foreign_Aid数据调整为tidy data</font>
+
+<font color=DarkSlateGray face="黑体" size=4>2.1 观察allAid的原始格式</font>
+```{r}
+#载入已经按时间合并的US_Foreign_Aid数据
+load("C:/Users/YHY/Desktop/Temp/pre_processing_homework/homework1.RData")
+#观察数据的变量名
+names(allAid)
+#观察前几行数据
+head(allAid)
+```
+<font color=DarkSlateGray face="黑体" size=4>2.2 使用reshape2包中的melt函数整理数据</font>
+```{r}
+library(reshape2)
+tidydata = na.omit(melt(allAid,
+                        id.vars=c("Country.Name","Program.Name"),
+                        variable.name="year",
+                        value.name="amount"))
+names(tidydata)
+tidydata[1:100,]
+```
+###<font color=DarkSlateGray face="黑体" size=5>完毕</font>

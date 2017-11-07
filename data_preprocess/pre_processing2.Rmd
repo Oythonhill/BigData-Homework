@@ -1,0 +1,154 @@
+---
+title: <center><font color=DarkSlateGray face="黑体" size=6>数据的预处理-第二次作业</font></center>
+author: <center><font color=DarkSlateGray face="黑体" size=4>尹宏宇</font></center>
+date: <center><font color=DarkSlateGray face="黑体" size=4>2017年10月28日</font></center>
+output:
+  html_document: default
+---
+
+```{r eval=F}
+#导入需要的包
+library(nycflights13)
+library(dplyr)
+library(lattice)
+library(plyr)
+library(Rmisc)
+library(lubridate)
+library(ggplot2)
+library(maps)
+library(mapdata)
+```
+
+```{r setup,include=F}
+#导入需要的包
+library(nycflights13)
+library(dplyr)
+library(lattice)
+library(plyr)
+library(Rmisc)
+library(lubridate)
+library(ggplot2)
+```
+<font color=DarkSlateGray face="黑体" size=5>数据的预处理</font>
+```{r}
+#整合时间数据
+make_datetime_100 <- function(year, month, day, time)
+  {make_datetime(year, month, day, time %/% 100, time %% 100)}
+flights_dt <- 
+  flights %>% 
+  filter(!is.na(dep_time), !is.na(arr_time)) %>% 
+  mutate(
+    dep_time = make_datetime_100(year, month, day, dep_time),
+    arr_time = make_datetime_100(year, month, day, arr_time),
+    sched_dep_time = make_datetime_100(year, month, day, sched_dep_time ),
+    sched_arr_time = make_datetime_100( year, month, day, sched_arr_time)) %>%
+  select(origin, dest, ends_with("delay"), ends_with("time"))
+```
+
+<font color=DarkSlateGray face="黑体" size=5> 1. 对比数据集flights中的变量dep_time，sched_dep_time，
+与dep_delay，看是否一致？</font>
+
+```{r}
+attach(flights_dt)
+minus_dep_delay = (dep_time-sched_dep_time)/60-dep_delay
+as.numeric(minus_dep_delay)%>%
+  summary()
+as.numeric(minus_dep_delay)[minus_dep_delay!=0]%>%
+  length()
+detach(flights_dt)
+```
+<font color=black face="宋体" size=3> 观察结果发现不为0的出现了1205多行，即依据dep_time和sched_dep_time计算的延误时长和dep_delay有1205行不一致。观察数据情况，判断可能是系统性误差,由于于当天晚上的航班，延误到下一天才起飞,而在原始数据的记录中这两个时刻都属于同一天，因此，如果我们对这部分数据计算24:00到航班sched_dep_time的时间的差再加上0:00到起飞的时间,得到的结果和dep_delay即可一致,因此本文使用的延误时长为数据集中原有的dep_delay和arr_delay。</font>
+
+<font color=DarkSlateGray face="黑体" size=5> 2. 一天中不同时间点的平均延误时间是怎么样的?</font>
+```{r}
+#对flights数据集按照不同的整点计算飞机起飞的平均延误时长，并画图
+p1 = aggregate(dep_delay~hour,data=flights,FUN=mean)%>%
+  ggplot(aes(x=hour,y=dep_delay))+
+  geom_point()+
+  geom_smooth(method="loess",se=F,color="blue")+
+  theme_bw()+
+  ggtitle("整点时航班起飞的延误情况")
+#对flights数据集按照不同的整点计算飞机到达的平均延误时长，并画图
+p2 = aggregate(arr_delay~hour,data=flights,FUN=mean)%>%
+  ggplot(aes(x=hour,y=arr_delay))+
+  geom_point()+
+  geom_smooth(method="loess",se=F,color="tomato")+
+  theme_bw()+
+  ggtitle("整点时航班到达的延误情况")
+multiplot(p1,p2,cols=2)
+```
+
+<font color=black face="宋体" size=3> 可以看出一天中不同的时间点，航班延误的情况差距较大，从早上5点开始，随着时间的推移，航班的平均延误时间越来越久，到晚上20点左右延误情况最为严重，过了20点延误情况则慢慢缓解。</font>
+
+<font color=DarkSlateGray face="黑体" size=5> 3. 如果想要最小化飞机延误的概率，一周中哪天出行是最好的选择？</font>
+```{r}
+#向数据集中增加两列，一列计算当天是星期几，另一列计算平均延误时长
+#平均延误时长等于dep_delay和arr_delayd的均值
+flights_3 = flights%>%
+  mutate(wday=wday(time_hour))%>%
+  mutate(avg_delay=(dep_delay+arr_delay)/2)
+#画出从周一到周日每天的不同延误情况的散点图，并添加拟合曲线
+aggregate(avg_delay~wday,data=flights_3,FUN=mean)%>%
+  ggplot(aes(x=wday,y=avg_delay))+
+  geom_point()+
+  geom_smooth(method="loess",se=F)+
+  theme_bw()
+```
+
+<font color=black face="宋体" size=3> 根据上图可以看出，为了避免延误，我们最好选择在周日出发。</font>
+
+<font color=DarkSlateGray face="黑体" size=5> 4.在flights数据集中计算每个目的地机场的平均延误时间。
+为了可视化不同目的地的飞机延误程度，需将数据集flights与
+airports连接以获取经度和纬度信息。在地图上显示各目的地机场的延误情况。</font>
+```{r}
+#连接数据集flights和airports
+#由于此处考察的是目的地机场的延误情况，因此我们选择arr_delay作为衡量延误的变量
+flight_4 = aggregate(arr_delay~dest,flights,FUN=mean)
+head(flight_4)
+airports$dest = airports$faa
+flight_4 = flight_4%>%
+  left_join(airports,by="dest")
+```
+
+```{r warning=F}
+#由于国内不能使用google地图，因此我们选择先画出美国地图
+#载入美国各州的经纬度信息
+state_data = ggplot2::map_data("state",output="more")
+#查看美国地图的经纬度信息
+head(state_data)
+#画出美国地图
+p=ggplot() +
+  geom_polygon(data=state_data, aes(x=long,y=lat,group=group),fill="white",colour="black") +
+  labs(title = "USA Map")
+p
+#在画好地图上依据经纬度画点
+p+geom_point(data=flight_4,aes(x=lon,y=lat,color=arr_delay,size=arr_delay),alpha=0.9)+
+  scale_color_gradient(low="dodgerblue2",high="maroon2")
+```
+
+<font color=black face="宋体" size=3> 其中有两个点不在地图上，可能是在阿拉斯加和某个岛屿上,图中点的面积越大，颜色越偏向红色，则表示该点所在位置的机场延误情况越严重</font>
+
+<font color=DarkSlateGray face="黑体" size=5>5.	研究飞机的使用寿命与延误情况之间是否有关系？</font>
+```{r warning=F}
+#向数据集中添加一列，使用dep_delay和arr_delay计算平均延误
+flights_5 = flights%>%
+  mutate(avg_delay=(dep_delay+arr_delay)/2)
+#依据不同的飞机tailnum分组求平均延误
+flights_5 = aggregate(avg_delay~tailnum,data=flights_5,FUN=mean)
+head(flights_5)
+planes$age = 2013-planes$year
+#依据tailnum连接数据集
+flight_5 = flights_5%>%
+  left_join(planes,by="tailnum")
+head(flight_5)
+lastdata = na.omit(flight_5[,c("tailnum","avg_delay","age")])
+#pearson相关性检验
+with(lastdata,cor.test(avg_delay,age))
+ggplot()+
+  geom_point(data=lastdata,aes(x=age,y=avg_delay),alpha=0.5)
+```
+
+<font color=black face="宋体" size=3>从散点图我们看不出飞机的寿命和延误时长的明显关系，从pearson相关检验的结果分析，p值为0.1503大于0.05，因此我们认为飞机的寿命和其平均延误时长没有明显的相关关系。</font>
+
+<font color=DarkSlateGray face="黑体" size=5>END</font>
+
